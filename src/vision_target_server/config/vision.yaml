@@ -1,0 +1,17 @@
+vision_server:
+  ros__parameters:
+    color_topic: /camera/color/image_raw
+    depth_topic: /camera/depth/image_raw
+    camera_info_topic: /camera/color/camera_info
+    service_name: /vision/get_targets
+    model_path: /home/ubuntu/orbbec_ros2_ws/best.pt
+    device: "0"
+    default_confidence: 0.40
+    default_max_frame_age_sec: 0.50
+    sync_queue_size: 10
+    sync_slop_sec: 0.05
+    min_depth_m: 0.25
+    max_depth_m: 6.00
+    max_depth_mad_m: 0.10
+    sample_radius_px: 7
+    publish_rate: 0.1
