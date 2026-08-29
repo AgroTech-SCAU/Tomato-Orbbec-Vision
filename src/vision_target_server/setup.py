@@ -25,8 +25,9 @@ setup(
     license='Apache-2.0',
     entry_points={
         'console_scripts': [
-            'vision_server = vision_target_server.vision_server:main',
-            'vision_publisher = vision_target_server.vision_publisher:main',  # 新增这一行
+            'vision_node = vision_target_server.vision_node:main',
+            'vision_server = vision_target_server.vision_node:main',
+            'vision_publisher = vision_target_server.vision_node:main',
         ],
     },
 )

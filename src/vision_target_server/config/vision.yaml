@@ -1,17 +1,35 @@
-vision_server:
+vision_node:
   ros__parameters:
     color_topic: /camera/color/image_raw
     depth_topic: /camera/depth/image_raw
     camera_info_topic: /camera/color/camera_info
+
+    # Standard outputs
     service_name: /vision/get_targets
+    target_array_topic: /vision/targets
+    marker_topic: /vision/debug/markers
+
+    # Detector
     model_path: /home/ubuntu/orbbec_ros2_ws/best.pt
     device: "0"
+    inference_confidence_floor: 0.10
     default_confidence: 0.40
     default_max_frame_age_sec: 0.50
+
+    # RGB-D synchronization
     sync_queue_size: 10
     sync_slop_sec: 0.05
+
+    # Depth validation / 2D -> 3D projection
+    depth_uint16_scale_m: 0.001
     min_depth_m: 0.25
     max_depth_m: 6.00
     max_depth_mad_m: 0.10
+    min_depth_valid_ratio: 0.20
+    min_depth_valid_samples: 5
     sample_radius_px: 7
-    publish_rate: 0.1
+
+    # Continuous output (0.10 s = 10 Hz maximum inference/publish loop)
+    publish_period_sec: 0.10
+    publish_markers: true
+    marker_scale_m: 0.04

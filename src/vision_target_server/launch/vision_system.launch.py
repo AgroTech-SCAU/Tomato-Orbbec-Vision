@@ -1,4 +1,5 @@
 import os
+
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription
@@ -11,8 +12,9 @@ def generate_launch_description():
     vision_share = get_package_share_directory('vision_target_server')
 
     camera = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(os.path.join(
-            orbbec_share, 'launch', 'gemini_330_series.launch.py')),
+        PythonLaunchDescriptionSource(
+            os.path.join(orbbec_share, 'launch', 'gemini_330_series.launch.py')
+        ),
         launch_arguments={
             'camera_name': 'camera',
             'enable_color': 'true',
@@ -28,17 +30,17 @@ def generate_launch_description():
             'align_target_stream': 'COLOR',
             'enable_frame_sync': 'true',
             'depth_precision': '1mm',
-            'enable_point_cloud': 'false',
+            'enable_point_cloud': 'true',
             'enable_colored_point_cloud': 'false',
-        }.items()
+        }.items(),
     )
 
-    server = Node(
+    vision = Node(
         package='vision_target_server',
-        executable='vision_server',
-        name='vision_server',
+        executable='vision_node',
+        name='vision_node',
         output='screen',
-        parameters=[os.path.join(vision_share, 'config', 'vision.yaml')]
+        parameters=[os.path.join(vision_share, 'config', 'vision.yaml')],
     )
 
-    return LaunchDescription([camera, server])
+    return LaunchDescription([camera, vision])
