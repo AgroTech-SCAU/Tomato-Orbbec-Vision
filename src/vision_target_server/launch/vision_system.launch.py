@@ -35,12 +35,12 @@ def generate_launch_description():
         }.items(),
     )
 
-    vision = Node(
+    vision_server = Node(
         package='vision_target_server',
-        executable='vision_node',
-        name='vision_node',
+        executable='vision_server',
+        name='vision_server',
         output='screen',
         parameters=[os.path.join(vision_share, 'config', 'vision.yaml')],
     )
 
-    return LaunchDescription([camera, vision])
+    return LaunchDescription([camera, vision_server])

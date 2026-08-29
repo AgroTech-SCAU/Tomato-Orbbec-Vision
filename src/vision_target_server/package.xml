@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="3">
 <name>vision_target_server</name>
-<version>0.1.0</version>
-<description>ROS 2 service for 3D semantic targets.</description>
+<version>0.2.0</version>
+<description>Service-only ROS 2 RGB-D 3D target detector.</description>
 <maintainer email="you@example.com">Your Name</maintainer>
 <license>Apache-2.0</license>
 <buildtool_depend>ament_python</buildtool_depend>
@@ -10,7 +10,6 @@
 <exec_depend>sensor_msgs</exec_depend>
 <exec_depend>geometry_msgs</exec_depend>
 <exec_depend>std_msgs</exec_depend>
-<exec_depend>visualization_msgs</exec_depend>
 <exec_depend>cv_bridge</exec_depend>
 <exec_depend>message_filters</exec_depend>
 <exec_depend>vision_interfaces</exec_depend>

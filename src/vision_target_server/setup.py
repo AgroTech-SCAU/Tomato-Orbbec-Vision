@@ -6,7 +6,7 @@ package_name = 'vision_target_server'
 
 setup(
     name=package_name,
-    version='0.1.0',
+    version='0.2.0',
     packages=find_packages(exclude=['test']),
     data_files=[
         ('share/ament_index/resource_index/packages',
@@ -21,13 +21,11 @@ setup(
     zip_safe=True,
     maintainer='Your Name',
     maintainer_email='you@example.com',
-    description='ROS 2 service for 3D semantic targets.',
+    description='Service-only ROS 2 RGB-D 3D target detector.',
     license='Apache-2.0',
     entry_points={
         'console_scripts': [
-            'vision_node = vision_target_server.vision_node:main',
-            'vision_server = vision_target_server.vision_node:main',
-            'vision_publisher = vision_target_server.vision_node:main',
+            'vision_server = vision_target_server.vision_server:main',
         ],
     },
 )

@@ -1,13 +1,12 @@
-vision_node:
+vision_server:
   ros__parameters:
+    # Orbbec RGB-D inputs
     color_topic: /camera/color/image_raw
     depth_topic: /camera/depth/image_raw
     camera_info_topic: /camera/color/camera_info
 
-    # Standard outputs
+    # Only public vision interface
     service_name: /vision/get_targets
-    target_array_topic: /vision/targets
-    marker_topic: /vision/debug/markers
 
     # Detector
     model_path: /home/ubuntu/orbbec_ros2_ws/best.pt
@@ -28,8 +27,3 @@ vision_node:
     min_depth_valid_ratio: 0.20
     min_depth_valid_samples: 5
     sample_radius_px: 7
-
-    # Continuous output (0.10 s = 10 Hz maximum inference/publish loop)
-    publish_period_sec: 0.10
-    publish_markers: true
-    marker_scale_m: 0.04
