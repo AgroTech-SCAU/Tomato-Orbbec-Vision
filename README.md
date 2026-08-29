@@ -1,0 +1,615 @@
+<div align="center">
+
+# Tomato-Orbbec-Vision
+
+ROS 2 Humble RGB-D 3D target service for Orbbec Gemini 335L
+
+面向番茄采摘机器人的 Orbbec Gemini 335L RGB-D 三维目标检测服务
+
+[![ROS 2](https://img.shields.io/badge/ROS%202-Humble-22314E?style=flat-square)](https://docs.ros.org/en/humble/)
+[![Orbbec](https://img.shields.io/badge/Orbbec-Gemini%20335L-00AEEF?style=flat-square)](https://www.orbbec.com/products/stereo-vision-camera/gemini-335l/)
+[![YOLO](https://img.shields.io/badge/Detector-Ultralytics%20YOLO-111F68?style=flat-square)](https://docs.ultralytics.com/)
+
+</div>
+
+## 定位
+
+Tomato-Orbbec-Vision 是番茄采摘系统中的独立视觉子系统，当前阶段只负责 **RGB-D 目标检测与相机坐标系下的三维位置估计**，不负责机械臂坐标转换、手眼标定、抓取姿态生成和采摘任务编排
+
+系统使用 Orbbec 官方 ROS 2 驱动启动 Gemini 335L，通过同步 RGB、注册深度图和彩色相机内参，在收到服务请求时运行 YOLO，并返回当前画面中所有满足条件且深度有效的三维目标
+
+视觉应用层对外只保留一个 ROS 2 Service：
+
+```text
+/vision/get_targets
+```
+
+Orbbec 驱动仍会发布 RGB、Depth、CameraInfo 和 PointCloud2 等传感器 Topic；其中 PointCloud2 当前不参与目标定位，保留给后续机械臂环境感知使用
+
+## 核心能力
+
+| 能力 | 作用 | 主要入口 |
+| --- | --- | --- |
+| Gemini 335L Bringup | 启动 RGB、Depth、CameraInfo 与 PointCloud2 | `vision_system.launch.py` |
+| RGB-D Synchronization | 缓存最新同步的 RGB / Depth / CameraInfo | `vision_server.py` |
+| YOLO Detection | 按请求执行目标检测，不持续占用 GPU 推理 | `detector.py` |
+| Depth Validation | 中值深度、有效样本比例与 MAD 稳定性检查 | `rgbd_projector.py` |
+| 2D → 3D | 使用相机内参将目标像素投影到相机坐标系 | `rgbd_projector.py` |
+| Target Query | 按类别与置信度返回一组有效三维目标 | `/vision/get_targets` |
+| PointCloud2 | 提供公共 Orbbec 点云，预留环境感知 | Orbbec Driver |
+
+## 系统结构
+
+```text
+Orbbec Gemini 335L
+├── RGB Image ──────────────┐
+├── Registered Depth ───────┼──> vision_server
+└── Color CameraInfo ───────┘        │
+                                     │ cache only
+                                     │
+                              /vision/get_targets
+                                     │
+                                     ▼
+                                  YOLO
+                                     │
+                              Depth validation
+                                     │
+                                 2D → 3D
+                                     │
+                                     ▼
+                           TargetPoint[] + Header
+
+Orbbec PointCloud2 ─────────────────────> 后续机械臂环境感知
+```
+
+平时 `vision_server` 只缓存最新同步 RGB-D 帧，不运行 YOLO；只有收到 `/vision/get_targets` 请求时才执行一次推理
+
+## 仓库结构
+
+OrbbecSDK_ROS2 使用官方仓库，不在本项目中维护修改版；首次部署时将官方源码拉取到 `src/OrbbecSDK_ROS2/`
+
+```text
+Tomato-Orbbec-Vision/
+├── README.md
+├── best.pt                              # 当前项目 YOLO 权重，路径由 vision.yaml 指定
+│
+└── src/
+    ├── OrbbecSDK_ROS2/                  # 官方依赖，git clone 获取
+    │   ├── orbbec_camera/
+    │   ├── orbbec_camera_msgs/
+    │   └── orbbec_description/
+    │
+    ├── vision_interfaces/               # ROS 2 Service / Message 定义
+    │   ├── msg/
+    │   │   └── TargetPoint.msg
+    │   └── srv/
+    │       └── GetTargets.srv
+    │
+    └── vision_target_server/            # RGB-D 三维目标服务
+        ├── config/
+        │   └── vision.yaml
+        ├── launch/
+        │   └── vision_system.launch.py
+        └── vision_target_server/
+            ├── detector.py
+            ├── rgbd_projector.py
+            └── vision_server.py
+```
+
+## 使用入口
+
+```text
+第一次部署
+    ↓
+拉取 OrbbecSDK_ROS2 v2-main
+    ↓
+安装 udev rules 与依赖
+    ↓
+配置 best.pt / vision.yaml
+    ↓
+colcon build
+
+单独检查相机
+    ↓
+list_devices_node
+    ↓
+gemini_330_series.launch.py
+
+运行完整视觉系统
+    ↓
+vision_system.launch.py
+    ↓
+/vision/get_targets
+
+后续机械臂集成
+    ↓
+手眼标定
+    ↓
+camera optical frame → base_link
+    ↓
+目标选择 / 抓取姿态 / PickTask
+```
+
+## Quick Start
+
+### 1 获取 OrbbecSDK_ROS2
+
+本项目基于 Orbbec 官方 ROS 2 Wrapper：
+
+https://github.com/orbbec/OrbbecSDK_ROS2
+
+Gemini 335L 推荐使用官方 `v2-main` 分支；官方当前设备支持表中，Gemini 335L 对应启动文件为 `gemini_330_series.launch.py`
+
+在项目根目录执行：
+
+```bash
+cd src
+
+git clone https://github.com/orbbec/OrbbecSDK_ROS2.git
+cd OrbbecSDK_ROS2
+git checkout v2-main
+
+cd ../..
+```
+
+如果已经拉取过：
+
+```bash
+git -C src/OrbbecSDK_ROS2 fetch origin
+git -C src/OrbbecSDK_ROS2 checkout v2-main
+git -C src/OrbbecSDK_ROS2 pull --ff-only origin v2-main
+```
+
+### 2 安装 Orbbec 依赖与 udev rules
+
+先加载 ROS 2 Humble：
+
+```bash
+source /opt/ros/humble/setup.bash
+```
+
+安装 Orbbec 官方依赖：
+
+```bash
+sudo apt update
+sudo apt install -y \
+  libgflags-dev \
+  nlohmann-json3-dev \
+  ros-$ROS_DISTRO-image-transport \
+  ros-${ROS_DISTRO}-image-transport-plugins \
+  ros-${ROS_DISTRO}-compressed-image-transport \
+  ros-$ROS_DISTRO-image-publisher \
+  ros-$ROS_DISTRO-camera-info-manager \
+  ros-$ROS_DISTRO-diagnostic-updater \
+  ros-$ROS_DISTRO-diagnostic-msgs \
+  ros-$ROS_DISTRO-statistics-msgs \
+  ros-$ROS_DISTRO-xacro \
+  ros-$ROS_DISTRO-backward-ros \
+  libdw-dev \
+  libssl-dev \
+  mesa-utils \
+  libgl1 \
+  libgoogle-glog-dev
+```
+
+安装 Linux udev rules：
+
+```bash
+cd src/OrbbecSDK_ROS2/orbbec_camera/scripts
+sudo bash install_udev_rules.sh
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+cd ../../../..
+```
+
+udev rules 是 Linux 下正常访问 Orbbec 设备的必要步骤
+
+### 3 安装视觉 Python 依赖
+
+YOLO 由 Ultralytics 提供：
+
+```bash
+python3 -m pip install --user ultralytics
+```
+
+确认可导入：
+
+```bash
+python3 -c "import ultralytics; print(ultralytics.__version__)"
+```
+
+ROS 2 其余依赖优先交给 rosdep：
+
+```bash
+rosdep install \
+  --from-paths src \
+  --ignore-src \
+  -r -y \
+  --rosdistro humble
+```
+
+### 4 配置模型与视觉参数
+
+视觉配置文件：
+
+```text
+src/vision_target_server/config/vision.yaml
+```
+
+当前主要参数：
+
+| 参数 | 默认值 | 作用 |
+| --- | ---: | --- |
+| `color_topic` | `/camera/color/image_raw` | RGB 输入 |
+| `depth_topic` | `/camera/depth/image_raw` | 已注册深度输入 |
+| `camera_info_topic` | `/camera/color/camera_info` | 彩色相机内参 |
+| `service_name` | `/vision/get_targets` | 唯一视觉应用接口 |
+| `model_path` | `/home/ubuntu/orbbec_ros2_ws/best.pt` | YOLO 权重绝对路径 |
+| `device` | `0` | CUDA GPU 0；无 CUDA 时改为 `cpu` |
+| `default_confidence` | `0.40` | 请求未指定时的默认置信度 |
+| `default_max_frame_age_sec` | `0.50` | 默认允许的最大图像年龄 |
+| `min_depth_m` | `0.25` | 最小有效深度 |
+| `max_depth_m` | `6.00` | 最大有效深度 |
+| `max_depth_mad_m` | `0.10` | 深度 MAD 稳定性阈值 |
+| `sample_radius_px` | `7` | 目标中心深度采样半径 |
+
+第一次运行前至少检查：
+
+```yaml
+model_path: /path/to/best.pt
+device: "0"      # NVIDIA CUDA
+# device: "cpu"  # 无 CUDA 时使用
+```
+
+当前仓库默认按单台 Orbbec 相机使用，不配置 `/dev/ttyUSB*` 或 `/dev/ttyACM*`；Gemini 335L 是 USB 相机，不是串口设备
+
+多相机场景需要在 `vision_system.launch.py` 中进一步暴露并固定 Orbbec `serial_number` 或 USB 设备选择参数
+
+### 5 构建
+
+在项目根目录：
+
+```bash
+source /opt/ros/humble/setup.bash
+
+colcon build \
+  --symlink-install \
+  --event-handlers console_direct+ \
+  --cmake-args -DCMAKE_BUILD_TYPE=Release
+
+source install/setup.bash
+```
+
+修改 Python 代码后使用 `--symlink-install` 可以减少重复复制安装文件
+
+### 6 检查 Gemini 335L
+
+连接相机后：
+
+```bash
+source install/setup.bash
+ros2 run orbbec_camera list_devices_node
+```
+
+确认能识别设备后，可以先单独启动官方相机节点：
+
+```bash
+ros2 launch orbbec_camera gemini_330_series.launch.py
+```
+
+检查传感器 Topic：
+
+```bash
+ros2 topic list | grep camera
+```
+
+至少确认 RGB、Depth 和 CameraInfo 正常输出
+
+### 7 启动完整视觉系统
+
+```bash
+source install/setup.bash
+ros2 launch vision_target_server vision_system.launch.py
+```
+
+`vision_system.launch.py` 当前会同时启动：
+
+```text
+Orbbec Gemini 330 series driver
+├── Color: 1280 × 800 @ 30 Hz
+├── Depth: 1280 × 800 @ 30 Hz
+├── Depth registration: ON
+├── Align target: COLOR
+├── Frame sync: ON
+├── PointCloud2: ON
+└── Colored PointCloud: OFF
+
+vision_server
+└── /vision/get_targets
+```
+
+应用层不会周期性发布目标 Topic，也不会持续运行 YOLO
+
+## Service API
+
+### `/vision/get_targets`
+
+接口类型：
+
+```text
+vision_interfaces/srv/GetTargets
+```
+
+查看完整定义：
+
+```bash
+ros2 interface show vision_interfaces/srv/GetTargets
+```
+
+请求：
+
+```text
+string[] class_filter
+float32 min_confidence
+float32 max_frame_age_sec
+```
+
+响应：
+
+```text
+uint8 OK=0
+uint8 NO_FRAME=1
+uint8 STALE_FRAME=2
+uint8 BAD_FRAME=3
+uint8 INFERENCE_ERROR=4
+
+bool success
+uint8 status_code
+string message
+std_msgs/Header header
+vision_interfaces/TargetPoint[] targets
+```
+
+一次请求返回 **一组目标**，不是单个目标
+
+例如：
+
+```bash
+ros2 service call \
+  /vision/get_targets \
+  vision_interfaces/srv/GetTargets \
+  "{class_filter: ['tomato'], min_confidence: 0.40, max_frame_age_sec: 0.50}"
+```
+
+如果 `min_confidence <= 0`，使用 `vision.yaml` 中的 `default_confidence`
+
+如果 `max_frame_age_sec <= 0`，使用 `default_max_frame_age_sec`
+
+### `TargetPoint`
+
+```text
+string semantic_label
+int32 class_id
+float32 confidence
+geometry_msgs/Point position
+int32[4] bbox_xyxy
+int32 pixel_u
+int32 pixel_v
+float32 depth_mad_m
+```
+
+字段含义：
+
+| 字段 | 含义 |
+| --- | --- |
+| `semantic_label` | YOLO 类别名，例如 `tomato` |
+| `class_id` | YOLO 类别编号 |
+| `confidence` | 检测置信度 |
+| `position` | 相机 optical frame 下的目标 XYZ，单位 m |
+| `bbox_xyxy` | RGB 图像中的 `[xmin, ymin, xmax, ymax]` |
+| `pixel_u / pixel_v` | 用于三维投影的中心像素 |
+| `depth_mad_m` | 深度采样的 MAD，单位 m，用于判断深度稳定性 |
+
+所有 `targets[]` 共用 `response.header`
+
+```text
+response.header.frame_id
+        ↓
+表示 targets[].position 所在坐标系
+```
+
+在标准 ROS optical frame 中：
+
+```text
++x 向右
++y 向下
++z 向前
+```
+
+当前阶段不会转换到 `base_link`
+
+### 返回示例
+
+```yaml
+success: true
+status_code: 0
+message: "OK: 2 target(s); 1 detection(s) skipped for invalid depth"
+header:
+  stamp: ...
+  frame_id: camera_color_optical_frame
+targets:
+- semantic_label: tomato
+  class_id: 0
+  confidence: 0.91
+  position:
+    x: 0.052
+    y: -0.031
+    z: 0.624
+  bbox_xyxy: [412, 255, 518, 364]
+  pixel_u: 465
+  pixel_v: 309
+  depth_mad_m: 0.006
+- semantic_label: tomato
+  class_id: 0
+  confidence: 0.84
+  position:
+    x: -0.083
+    y: 0.017
+    z: 0.711
+  bbox_xyxy: [603, 281, 691, 370]
+  pixel_u: 647
+  pixel_v: 325
+  depth_mad_m: 0.009
+```
+
+## RGB-D 目标生成流程
+
+一次服务请求的内部流程：
+
+```text
+最新同步 RGB-D 帧
+    ↓
+检查 frame age
+    ↓
+YOLO 检测 N 个目标
+    ↓
+逐目标取 bbox 中心像素
+    ↓
+中心邻域深度采样
+    ↓
+有效样本比例 + Median + MAD
+    ↓
+无效深度目标剔除
+    ↓
+CameraInfo 投影
+    ↓
+得到 M 个有效三维目标
+    ↓
+class_filter + confidence filter
+    ↓
+GetTargets.Response
+```
+
+通常：
+
+```text
+M <= N
+```
+
+YOLO 检测成功但深度无效的目标不会进入最终 `targets[]`
+
+## PointCloud2
+
+`vision_system.launch.py` 已打开 Orbbec 普通点云：
+
+```text
+enable_point_cloud = true
+enable_colored_point_cloud = false
+```
+
+点云由 Orbbec 驱动直接发布，视觉服务当前不订阅、不滤波，也不用于番茄三维位置计算
+
+后续机械臂环境感知建议直接复用这一公共 PointCloud2：
+
+```text
+Orbbec PointCloud2
+    ↓
+workspace crop
+    ↓
+voxel / outlier filter
+    ↓
+相机 → base_link TF
+    ↓
+MoveIt Planning Scene / 环境感知
+```
+
+实际点云 Topic 名称以当前 Orbbec 驱动版本为准，可通过下面命令确认：
+
+```bash
+ros2 topic list | grep -E "points|cloud"
+```
+
+## 当前边界
+
+当前版本负责：
+
+```text
+Gemini 335L
+    ↓
+RGB-D
+    ↓
+YOLO
+    ↓
+相机坐标系三维目标集合
+```
+
+当前版本不负责：
+
+```text
+手眼标定
+camera → base_link
+最佳目标选择
+抓取姿态生成
+MoveIt 规划
+机械臂运动
+采摘任务编排
+```
+
+推荐后续集成顺序：
+
+```text
+视觉服务验收
+    ↓
+手眼标定
+    ↓
+TF 接入
+    ↓
+TargetPoint[] → 目标选择
+    ↓
+抓取 PoseStamped
+    ↓
+Tomato-Picker / PickTask
+```
+
+## 验收
+
+第一次部署建议按下面顺序检查：
+
+```bash
+# 1. 相机是否识别
+ros2 run orbbec_camera list_devices_node
+
+# 2. 完整系统是否启动
+ros2 launch vision_target_server vision_system.launch.py
+
+# 3. Service 是否存在
+ros2 service list | grep vision
+
+# 4. 接口定义是否正确
+ros2 interface show vision_interfaces/srv/GetTargets
+
+# 5. 请求一次三维目标
+ros2 service call \
+  /vision/get_targets \
+  vision_interfaces/srv/GetTargets \
+  "{class_filter: [], min_confidence: 0.40, max_frame_age_sec: 0.50}"
+```
+
+当前视觉子系统的核心验收标准是：
+
+```text
+RGB 正常
++ Depth 正常
++ YOLO 检测正确
++ response.header.frame_id 明确
++ targets[].position 稳定且距离正确
+```
+
+完成这一阶段后，再进入手眼标定和机械臂坐标系集成
+
+## 上游依赖
+
+- OrbbecSDK ROS2 Wrapper: https://github.com/orbbec/OrbbecSDK_ROS2
+- ROS 2 Humble: https://docs.ros.org/en/humble/
+- Ultralytics YOLO: https://docs.ultralytics.com/
+
