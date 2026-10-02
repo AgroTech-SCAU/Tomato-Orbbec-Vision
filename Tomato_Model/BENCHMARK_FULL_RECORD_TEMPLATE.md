@@ -82,7 +82,7 @@ V1.0以“软件可运行、可演示、流程完整”为验收重点，不以�
 | 数据集 | Roboflow `tomato-h72eq` v18 |
 | 任务 | 实例分割 |
 | 数据目录 | `E:\TOMATO\benchmark\dataset` |
-| 配置文件 | `E:\TOMATO\benchmark\data.yaml` |
+| 配置文件 |<https://github.com/AgroTech-SCAU/Tomato-Orbbec-Vision/blob/main/Tomato_Model/data.yaml> |
 | 配置文件SHA256 | `E22B9F898AD9F35A64B8CCACCA4A374D4669C2622CECC73B647C5399EA9AF381` |
 | 图像尺寸 | 768×768 |
 | 图像格式 | JPEG |
