@@ -1,0 +1,13 @@
+train: dataset/train/images
+val: dataset/valid/images
+test: dataset/test/images
+
+nc: 3
+names: [ripe, stem, unripe]
+
+roboflow:
+  workspace: buzhidao-mkdfs
+  project: tomato-h72eq
+  version: 18
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/buzhidao-mkdfs/tomato-h72eq/dataset/18
